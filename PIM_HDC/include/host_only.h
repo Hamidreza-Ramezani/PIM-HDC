@@ -6,7 +6,7 @@
 
 #include <uchar.h>
 
-#define CORE 16
+#define CORE 8
 
 // Number of samples in each channel's dataset
 extern int32_t number_of_input_samples;
