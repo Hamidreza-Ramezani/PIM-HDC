@@ -439,7 +439,9 @@ host_hdc(int32_t *data_set, int32_t *results, void *runtime) {
     int32_t quantized_buffer[hd.channels];
 
     int result_num = 0;
+    omp_set_num_threads(CORE);
 
+    //#pragma omp parallel for
     for (int ix = 0; ix < number_of_input_samples; ix += hd.n) {
 
         for (int z = 0; z < hd.n; z++) {

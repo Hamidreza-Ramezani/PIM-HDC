@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -lm --std=c11 -O3 -g -Wall -Wextra
+CFLAGS = -fopenmp -lm --std=c11 -O3 -g -Wall -Wextra
 DPU_OPTS = `dpu-pkg-config --cflags --libs dpu`
 TARGET = pim_hdc
 
@@ -78,7 +78,7 @@ INC=-Iinclude -IPIM-common/common/include -IPIM-common/host/include
 .PRECIOUS: $(TARGET) $(OBJECTS)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(OBJECTS) $(INC) -o $@ $(DPU_OPTS)
+	$(CC) $(CFLAGS) $(OBJECTS) $(INC) -o $@ $(DPU_OPTS)
 
 dpu:
 	DEBUG=$(DEBUG) NR_DPUS=$(NR_DPUS) NR_TASKLETS=$(NR_TASKLETS) \

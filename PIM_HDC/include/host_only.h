@@ -2,8 +2,11 @@
 #define HOST_ONLY_H_
 
 #include "init.h"
+#include "omp.h"
 
 #include <uchar.h>
+
+#define CORE 64
 
 // Number of samples in each channel's dataset
 extern int32_t number_of_input_samples;
