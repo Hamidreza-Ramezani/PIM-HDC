@@ -12,8 +12,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <pthread.h>
 
 #define DPU_PROGRAM "src/dpu/hdc.dpu"
+
+#define NR_THREADS 64
 
 #define TIME_NOW(_t) (clock_gettime(CLOCK_MONOTONIC, (_t)))
 
@@ -41,6 +44,18 @@ typedef struct hdc_data {
     uint32_t result_len;   /**< Length of the results */
     double execution_time; /**< Total execution time of run */
 } hdc_data;
+
+
+typedef struct {
+    int32_t *data_set;
+    int32_t *results;
+    uint32_t buffer_channel_length;
+    uint32_t output_buffer_length;
+    //int start_index;
+    //int end_index;
+    //void *runtime;
+} thread_data_t;
+
 
 /**
  * @struct in_buffer
@@ -426,10 +441,73 @@ prepare_dpu(int32_t *data_set, int32_t *results, void *runtime) {
  *
  * @return               Non-zero on failure.
  */
-static int
-host_hdc(int32_t *data_set, int32_t *results, void *runtime) {
+//static int
+//host_hdc(int32_t *data_set, int32_t *results, void *runtime) {
+//
+//    (void) runtime;
+//
+//    uint32_t overflow = 0;
+//    uint32_t old_overflow = 0;
+//    uint32_t mask = 1;
+//    uint32_t q[hd.bit_dim + 1];
+//    uint32_t q_N[hd.bit_dim + 1];
+//    int32_t quantized_buffer[hd.channels];
+//
+//    int result_num = 0;
+//    //omp_set_num_threads(CORE);
+//
+//    for (int ix = 0; ix < number_of_input_samples; ix += hd.n) {
+//
+//        for (int z = 0; z < hd.n; z++) {
+//
+//            for (int j = 0; j < hd.channels; j++) {
+//                if (ix + z < number_of_input_samples) {
+//                    int ind = A2D1D(number_of_input_samples, j, ix + z);
+//                    quantized_buffer[j] = data_set[ind];
+//                }
+//            }
+//
+//            // Spatial and Temporal Encoder: computes the n-gram.
+//            // N.B. if n = 1 we don't have the Temporal Encoder but only the Spatial Encoder.
+//            if (z == 0) {
+//                compute_N_gram(quantized_buffer, q);
+//            } else {
+//                compute_N_gram(quantized_buffer, q_N);
+//
+//                // Here the hypervector q is shifted by 1 position as permutation,
+//                // before performing the componentwise XOR operation with the new query (q_N).
+//                overflow = q[0] & mask;
+//
+//                for (int i = 1; i < hd.bit_dim; i++) {
+//                    old_overflow = overflow;
+//                    overflow = q[i] & mask;
+//                    q[i] = (q[i] >> 1) | (old_overflow << (32 - 1));
+//                    q[i] = q_N[i] ^ q[i];
+//                }
+//
+//                old_overflow = overflow;
+//                overflow = (q[hd.bit_dim] >> 16) & mask;
+//                q[hd.bit_dim] = (q[hd.bit_dim] >> 1) | (old_overflow << (32 - 1));
+//                q[hd.bit_dim] = q_N[hd.bit_dim] ^ q[hd.bit_dim];
+//
+//                q[0] = (q[0] >> 1) | (overflow << (32 - 1));
+//                q[0] = q_N[0] ^ q[0];
+//            }
+//        }
+//        // classifies the new N-gram through the Associative Memory matrix.
+//        results[result_num++] = associative_memory_32bit(q, hd.aM_32);
+//    }
+//
+//    return 0;
+//}
 
-    (void) runtime;
+void* thread_func(void* arg) {
+    thread_data_t *data = (thread_data_t*)arg;
+    //host_hdc(data->data_set, data->results, data->runtime, data->start_index, data->end_index);
+
+    //int32_t *data_set = data->data_set;
+    //int32_t *results = data->results;
+    int32_t number_of_samples = data->buffer_channel_length;
 
     uint32_t overflow = 0;
     uint32_t old_overflow = 0;
@@ -439,29 +517,22 @@ host_hdc(int32_t *data_set, int32_t *results, void *runtime) {
     int32_t quantized_buffer[hd.channels];
 
     int result_num = 0;
-    omp_set_num_threads(CORE);
 
-    //#pragma omp parallel for
-    for (int ix = 0; ix < number_of_input_samples; ix += hd.n) {
+    for (int ix = 0; ix < number_of_samples; ix += hd.n) {
 
         for (int z = 0; z < hd.n; z++) {
 
             for (int j = 0; j < hd.channels; j++) {
-                if (ix + z < number_of_input_samples) {
-                    int ind = A2D1D(number_of_input_samples, j, ix + z);
-                    quantized_buffer[j] = data_set[ind];
+                if (ix + z < number_of_samples) {
+                    int ind = A2D1D(number_of_samples, j, ix + z);
+                    quantized_buffer[j] = data->data_set[ind];
                 }
             }
 
-            // Spatial and Temporal Encoder: computes the n-gram.
-            // N.B. if n = 1 we don't have the Temporal Encoder but only the Spatial Encoder.
             if (z == 0) {
                 compute_N_gram(quantized_buffer, q);
             } else {
                 compute_N_gram(quantized_buffer, q_N);
-
-                // Here the hypervector q is shifted by 1 position as permutation,
-                // before performing the componentwise XOR operation with the new query (q_N).
                 overflow = q[0] & mask;
 
                 for (int i = 1; i < hd.bit_dim; i++) {
@@ -480,12 +551,82 @@ host_hdc(int32_t *data_set, int32_t *results, void *runtime) {
                 q[0] = q_N[0] ^ q[0];
             }
         }
-        // classifies the new N-gram through the Associative Memory matrix.
-        results[result_num++] = associative_memory_32bit(q, hd.aM_32);
+        data->results[result_num++] = associative_memory_32bit(q, hd.aM_32);
+    }
+    //free(data->data_set);
+    //free(data->results);
+
+    //return 0;
+    pthread_exit(NULL);
+}
+
+
+
+static int host_hdc(int32_t *data_set, int32_t *results, void *runtime) {
+
+    (void) runtime;
+
+    pthread_t threads[NR_THREADS];
+    thread_data_t thread_data[NR_THREADS];
+
+    //int32_t *data_set; // Assume this is initialized and filled with data
+    //int32_t *thread_results;  // Assume this is allocated with enough space
+
+    uint32_t buffer_channel_lengths[NR_THREADS];
+    calculate_buffer_lengths(NR_THREADS, buffer_channel_lengths, number_of_input_samples);
+
+    uint32_t buff_offset = 0;
+    for (int i = 0; i < NR_THREADS; i++) {
+        //thread_data[i].data_set = data_set;
+        uint32_t buffer_size = (sizeof(int32_t) * buffer_channel_lengths[i] * hd.channels);
+        thread_data[i].data_set = malloc(buffer_size);
+        if (thread_data[i].data_set == NULL) {
+            nomem();
+        }
+
+        size_t sz_xfer = buffer_channel_lengths[i] * sizeof(int32_t);
+        for (int j = 0; j < hd.channels; j++) {
+            int32_t *ta = &data_set[(j * number_of_input_samples) + buff_offset];
+            //dbg_printf("INPUT data_set[%d] (%u bytes) (%u chunk_size, %u usable):\n", i,
+            //           input->buffer_channel_aligned_size, input->buffer_channel_length,
+            //           input->buffer_channel_usable_length);
+            (void) memcpy(&thread_data[i].data_set[j * buffer_channel_lengths[i]], ta, sz_xfer);
+        }
+        buff_offset += buffer_channel_lengths[i];
+
+        //thread_data[i].results = thread_results;
+
+        uint32_t extra_result = (buffer_channel_lengths[i] % hd.n) != 0;
+        uint32_t result_len = (buffer_channel_lengths[i] / hd.n) + extra_result;
+        thread_data[i].output_buffer_length = result_len;
+        if ((thread_data[i].results = malloc(result_len * sizeof(int32_t))) == NULL) {
+            nomem();
+        }
+
+        thread_data[i].buffer_channel_length = buffer_channel_lengths[i];
+        //thread_data[i].start_index = i * chunk_size;
+        //thread_data[i].end_index = (i == NR_THREADS - 1) ? number_of_input_samples : (i + 1) * chunk_size;
+        //thread_data[i].runtime = runtime;
+        pthread_create(&threads[i], NULL, thread_func, (void*)&thread_data[i]);
+    }
+
+    for (int i = 0; i < NR_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+        //free(thread_data[i]);
+    }
+
+
+    uint32_t result_num = 0;
+    for (uint32_t thread_id = 0; thread_id < NR_THREADS; thread_id++) {
+        for (uint32_t j = 0; j < thread_data[thread_id].output_buffer_length; j++) {
+            results[result_num++] = thread_data[thread_id].results[j];
+        }
     }
 
     return 0;
 }
+
+
 
 /**
  * @brief Run a HDC workload and time the execution

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -fopenmp -lm --std=c11 -O3 -g -Wall -Wextra
+CFLAGS = -fopenmp -lpthread -lm --std=c11 -O3 -g -Wall -Wextra
 DPU_OPTS = `dpu-pkg-config --cflags --libs dpu`
 TARGET = pim_hdc
 
