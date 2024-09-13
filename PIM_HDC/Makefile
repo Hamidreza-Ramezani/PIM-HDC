@@ -64,7 +64,7 @@ CFLAGS += -D_POSIX_C_SOURCE=199309L
 
 .PHONY: default all clean
 
-default: $(TARGET) dpu
+default: $(TARGET)
 all: default
 
 SOURCES = $(wildcard src/*.c) $(wildcard src/hdc/*.c)
@@ -73,12 +73,12 @@ HEADERS = $(wildcard include/*.h)
 INC=-Iinclude -IPIM-common/common/include -IPIM-common/host/include
 
 %.o: %.c $(HEADERS)
-	$(CC) $(CFLAGS) $(INC) -c $< -o $@ $(DPU_OPTS)
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
 
 .PRECIOUS: $(TARGET) $(OBJECTS)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $(OBJECTS) $(INC) -o $@ $(DPU_OPTS)
+	$(CC) $(CFLAGS) $(OBJECTS) $(INC) -o $@
 
 dpu:
 	DEBUG=$(DEBUG) NR_DPUS=$(NR_DPUS) NR_TASKLETS=$(NR_TASKLETS) \
