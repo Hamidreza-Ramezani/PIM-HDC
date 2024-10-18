@@ -516,6 +516,8 @@ void* thread_func(void* arg) {
     uint32_t q[hd.bit_dim + 1];
     uint32_t q_N[hd.bit_dim + 1];
     int32_t quantized_buffer[hd.channels];
+    printf("channels is %d\n",hd.channels);
+    printf("bit_dim is %d\n",hd.bit_dim);
 
     int result_num = 0;
 
